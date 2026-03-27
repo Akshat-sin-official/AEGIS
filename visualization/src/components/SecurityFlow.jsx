@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Lock, Fingerprint, Activity, ShieldCheck, Database, RefreshCw, Key, ChevronLeft } from 'lucide-react';
+import { useAuth } from '../context/AuthContext';
 import UserInputStep from './UserInputStep';
 import HashVisualizer from './HashVisualizer';
 import RiskEngine from './RiskEngine';
@@ -61,6 +62,7 @@ const steps = [
 const AUDIT_KEY = 'peast_audit_logs';
 
 const SecurityFlow = ({ onBack }) => {
+  const { user, isAuthenticated } = useAuth();
   const [activeStep, setActiveStep] = useState(0);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -69,6 +71,12 @@ const SecurityFlow = ({ onBack }) => {
   const [mfaVerified, setMfaVerified] = useState(false);
   const [sessionToken, setSessionToken] = useState(null);
   const [auditLog, setAuditLog] = useState([]);
+
+  useEffect(() => {
+    if (isAuthenticated && user?.email) {
+      setEmail(user.email);
+    }
+  }, [isAuthenticated, user]);
 
   useEffect(() => {
     try {

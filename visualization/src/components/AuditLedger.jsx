@@ -1,8 +1,57 @@
-import React from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Database, Shield, History, Trash2, ShieldAlert } from 'lucide-react';
+import { Database, Shield, History, Trash2, ShieldAlert, RefreshCw } from 'lucide-react';
+import { useAuth } from '../context/AuthContext';
+import { apiGet } from '../lib/api';
+
+function mapServerEventToStatus(eventType) {
+  if (['login_fail', 'totp_fail', 'lockout', 'account_locked', 'ip_blocked'].includes(eventType)) return 'alert';
+  if (['register', 'totp_required', 'totp_success'].includes(eventType)) return 'system';
+  return 'verified';
+}
+
+function formatServerLog(row) {
+  const t = row.created_at ? new Date(row.created_at).toLocaleString() : '';
+  const ev = [row.event_type, row.detail].filter(Boolean).join(' — ');
+  return {
+    id: row.id,
+    time: t,
+    event: `${ev} @ ${row.ip_address || ''}`,
+    status: mapServerEventToStatus(row.event_type)
+  };
+}
 
 const AuditLedger = ({ logs = [], onLogsChange, journeyHint }) => {
+  const { isAuthenticated } = useAuth();
+  const [serverRows, setServerRows] = useState(null);
+  const [loadingRemote, setLoadingRemote] = useState(false);
+
+  const loadRemote = async () => {
+    setLoadingRemote(true);
+    try {
+      const data = await apiGet('/api/logs');
+      setServerRows(data.logs || []);
+    } catch {
+      setServerRows([]);
+    } finally {
+      setLoadingRemote(false);
+    }
+  };
+
+  useEffect(() => {
+    if (isAuthenticated) void loadRemote();
+    else setServerRows(null);
+  }, [isAuthenticated]);
+
+  const displayLogs = useMemo(() => {
+    if (isAuthenticated && serverRows) {
+      return serverRows.map(formatServerLog);
+    }
+    return logs;
+  }, [isAuthenticated, serverRows, logs]);
+
+  const serverMode = isAuthenticated && serverRows !== null;
+
   const clearLogs = () => {
     const reset = [
       {
@@ -34,26 +83,43 @@ const AuditLedger = ({ logs = [], onLogsChange, journeyHint }) => {
           </div>
           <div>
             <h3 className="text-lg font-bold text-primary">Persistent Audit Repository</h3>
-            <p className="text-[10px] font-bold text-secondary/40 uppercase tracking-[0.2em]">Synced from your current journey</p>
+            <p className="text-[10px] font-bold text-secondary/40 uppercase tracking-[0.2em]">
+              {serverMode ? 'MySQL authentication_logs (live)' : 'Browser journey + localStorage'}
+            </p>
           </div>
         </div>
         <div className="flex items-center gap-3">
-          <button
-            type="button"
-            onClick={addManualLog}
-            className="px-4 py-2 bg-white border border-gray-100 rounded-xl text-xs font-bold text-secondary hover:bg-gray-50 flex items-center gap-2 shadow-sm transition-all"
-          >
-            <History className="w-3.5 h-3.5" />
-            Manual Audit
-          </button>
-          <button
-            type="button"
-            onClick={clearLogs}
-            className="px-4 py-2 bg-red-50 border border-red-100 rounded-xl text-xs font-bold text-red-600 hover:bg-red-100 flex items-center gap-2 shadow-sm transition-all"
-          >
-            <Trash2 className="w-3.5 h-3.5" />
-            Purge Trail
-          </button>
+          {serverMode && (
+            <button
+              type="button"
+              onClick={() => loadRemote()}
+              disabled={loadingRemote}
+              className="px-4 py-2 bg-white border border-gray-100 rounded-xl text-xs font-bold text-secondary hover:bg-gray-50 flex items-center gap-2 shadow-sm"
+            >
+              <RefreshCw className={`w-3.5 h-3.5 ${loadingRemote ? 'animate-spin' : ''}`} />
+              Refresh
+            </button>
+          )}
+          {!serverMode && (
+            <>
+              <button
+                type="button"
+                onClick={addManualLog}
+                className="px-4 py-2 bg-white border border-gray-100 rounded-xl text-xs font-bold text-secondary hover:bg-gray-50 flex items-center gap-2 shadow-sm transition-all"
+              >
+                <History className="w-3.5 h-3.5" />
+                Manual Audit
+              </button>
+              <button
+                type="button"
+                onClick={clearLogs}
+                className="px-4 py-2 bg-red-50 border border-red-100 rounded-xl text-xs font-bold text-red-600 hover:bg-red-100 flex items-center gap-2 shadow-sm transition-all"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+                Purge Trail
+              </button>
+            </>
+          )}
         </div>
       </div>
 
@@ -104,7 +170,7 @@ const AuditLedger = ({ logs = [], onLogsChange, journeyHint }) => {
               </thead>
               <tbody className="divide-y divide-gray-50">
                 <AnimatePresence initial={false}>
-                  {logs.map((log) => (
+                  {displayLogs.map((log) => (
                     <motion.tr
                       key={log.id}
                       initial={{ opacity: 0, height: 0 }}
@@ -136,7 +202,7 @@ const AuditLedger = ({ logs = [], onLogsChange, journeyHint }) => {
                 </AnimatePresence>
               </tbody>
             </table>
-            {logs.length === 0 && (
+            {displayLogs.length === 0 && (
               <div className="py-20 text-center space-y-3 opacity-20">
                 <History className="w-12 h-12 mx-auto" />
                 <p className="text-sm font-bold uppercase tracking-[0.3em]">No Historical Data</p>
@@ -149,8 +215,10 @@ const AuditLedger = ({ logs = [], onLogsChange, journeyHint }) => {
       <div className="flex items-center gap-3 p-4 bg-amber-50 rounded-2xl border border-amber-100 border-dashed">
         <ShieldAlert className="w-5 h-5 text-amber-600 shrink-0" />
         <p className="text-[11px] text-amber-900 leading-tight">
-          <b>Security Note:</b> This ledger is persisted in your browser (localStorage) for this demo. Production systems
-          stream these events to a hardened store with row-level encryption.
+          <b>Security Note:</b>{' '}
+          {serverMode
+            ? 'Rows are read from your MySQL authentication_logs table via the API.'
+            : 'Offline rows use localStorage. Sign in to attach the live server audit trail.'}
         </p>
       </div>
     </div>
