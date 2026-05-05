@@ -331,7 +331,12 @@ router.post('/verify-totp', async (req, res) => {
     return res.status(400).json({ error: 'TOTP not configured' });
   }
 
-  const valid = await verifyTotp(user.totp_secret, String(code).replace(/\s/g, ''));
+  let valid = false;
+  try {
+    valid = await verifyTotp(user.totp_secret, String(code).replace(/\s/g, ''));
+  } catch {
+    valid = false;
+  }
   if (!valid) {
     await writeAuthLog({
       userId: user.id,

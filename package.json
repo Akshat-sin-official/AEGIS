@@ -6,5 +6,8 @@
     "dev:server": "npm run dev --prefix server",
     "dev:client": "npm run dev --prefix visualization",
     "install:all": "npm install --prefix server && npm install --prefix visualization"
+  },
+  "dependencies": {
+    "docx": "^9.6.1"
   }
 }
