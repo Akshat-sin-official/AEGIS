@@ -33,6 +33,14 @@ const Hero = ({ onStart }) => {
         <motion.p
           initial={{ y: 20, opacity: 0 }}
           animate={{ y: 0, opacity: 1 }}
+          transition={{ delay: 0.35 }}
+          className="text-base md:text-lg font-semibold text-accent/95 tracking-wide max-w-3xl mx-auto"
+        >
+          Advanced Encryption & Guarded Identity System
+        </motion.p>
+        <motion.p
+          initial={{ y: 20, opacity: 0 }}
+          animate={{ y: 0, opacity: 1 }}
           transition={{ delay: 0.4 }}
           className="text-xl text-secondary max-w-2xl mx-auto leading-relaxed"
         >

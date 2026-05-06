@@ -16,7 +16,7 @@ function scorePassword(pw) {
   return { score: idx, label: labels[idx], color: colors[idx] };
 }
 
-const UserInputStep = ({ email, password, onEmailChange, onPasswordChange }) => {
+const UserInputStep = ({ email, password, status, persisting, persisted, onEmailChange, onPasswordChange }) => {
   const strength = useMemo(() => scorePassword(password), [password]);
 
   return (
@@ -69,8 +69,18 @@ const UserInputStep = ({ email, password, onEmailChange, onPasswordChange }) => 
           />
         </div>
         <p className="text-[11px] text-secondary/60 leading-relaxed">
-          Values stay in this browser tab for the demo flow. The next step hashes the password you enter here with bcrypt.
+          On Proceed, this step now persists your credentials through the live backend before moving to the hashing stage.
         </p>
+        {status?.message && (
+          <p className={`text-[11px] leading-relaxed ${status.type === 'error' ? 'text-red-600' : 'text-emerald-700'}`}>
+            {status.message}
+          </p>
+        )}
+        {(persisting || persisted) && (
+          <p className="text-[10px] font-bold uppercase tracking-widest text-secondary/50">
+            {persisting ? 'Persisting to database...' : 'Persistence complete'}
+          </p>
+        )}
       </div>
     </div>
   );

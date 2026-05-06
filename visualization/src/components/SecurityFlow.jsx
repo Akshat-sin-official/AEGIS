@@ -62,10 +62,13 @@ const steps = [
 const AUDIT_KEY = 'peast_audit_logs';
 
 const SecurityFlow = ({ onBack }) => {
-  const { user, isAuthenticated } = useAuth();
+  const { user, isAuthenticated, register } = useAuth();
   const [activeStep, setActiveStep] = useState(0);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [inputStatus, setInputStatus] = useState({ type: '', message: '' });
+  const [persistingInput, setPersistingInput] = useState(false);
+  const [inputPersisted, setInputPersisted] = useState(false);
   const [hashFingerprint, setHashFingerprint] = useState(null);
   const [riskSnapshot, setRiskSnapshot] = useState(null);
   const [mfaVerified, setMfaVerified] = useState(false);
@@ -75,6 +78,8 @@ const SecurityFlow = ({ onBack }) => {
   useEffect(() => {
     if (isAuthenticated && user?.email) {
       setEmail(user.email);
+      setInputPersisted(true);
+      setInputStatus({ type: 'success', message: 'Authenticated session detected. Credentials are already persisted.' });
     }
   }, [isAuthenticated, user]);
 
@@ -126,6 +131,9 @@ const SecurityFlow = ({ onBack }) => {
         <UserInputStep
           email={email}
           password={password}
+          status={inputStatus}
+          persisting={persistingInput}
+          persisted={inputPersisted}
           onEmailChange={setEmail}
           onPasswordChange={setPassword}
         />
@@ -201,6 +209,39 @@ const SecurityFlow = ({ onBack }) => {
         return null;
     }
   };
+
+  const persistStepOne = useCallback(async () => {
+    const normalizedEmail = email.trim().toLowerCase();
+    if (!normalizedEmail || !password) {
+      setInputStatus({ type: 'error', message: 'Enter both email and password before continuing.' });
+      return false;
+    }
+    if (isAuthenticated) {
+      setInputPersisted(true);
+      setInputStatus({ type: 'success', message: 'Already authenticated. Continuing with your active identity.' });
+      return true;
+    }
+    if (inputPersisted) return true;
+    setPersistingInput(true);
+    setInputStatus({ type: '', message: '' });
+    try {
+      const response = await register(normalizedEmail, password);
+      setInputPersisted(true);
+      setInputStatus({
+        type: 'success',
+        message: `Saved to backend as user ID ${response.userId}.`
+      });
+      appendAudit(`New account persisted for ${normalizedEmail} (user ${response.userId})`, 'verified');
+      return true;
+    } catch (ex) {
+      const msg = ex?.message || 'Unable to persist credentials';
+      setInputStatus({ type: 'error', message: msg });
+      appendAudit(`Credential persistence failed for ${normalizedEmail}: ${msg}`, 'alert');
+      return false;
+    } finally {
+      setPersistingInput(false);
+    }
+  }, [appendAudit, email, inputPersisted, isAuthenticated, password, register]);
 
   return (
     <div className="space-y-12">
@@ -342,10 +383,21 @@ const SecurityFlow = ({ onBack }) => {
                     type="button"
                     whileHover={{ x: 10, scale: 1.05 }}
                     whileTap={{ scale: 0.95 }}
-                    onClick={() => (activeStep === steps.length - 1 ? onBack() : setActiveStep((s) => s + 1))}
+                    disabled={persistingInput}
+                    onClick={async () => {
+                      if (activeStep === 0) {
+                        const ok = await persistStepOne();
+                        if (!ok) return;
+                      }
+                      if (activeStep === steps.length - 1) {
+                        onBack();
+                        return;
+                      }
+                      setActiveStep((s) => s + 1);
+                    }}
                     className="px-10 py-3 bg-primary text-white rounded-full text-sm font-bold hover:shadow-2xl hover:shadow-primary/20 transition-all flex items-center gap-2"
                   >
-                    {activeStep === steps.length - 1 ? 'Complete Journey' : 'Proceed to Next Level'}
+                    {persistingInput ? 'Saving...' : activeStep === steps.length - 1 ? 'Complete Journey' : 'Proceed to Next Level'}
                     <ChevronLeft className="w-4 h-4 rotate-180" />
                   </motion.button>
                 </div>

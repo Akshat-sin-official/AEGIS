@@ -69,8 +69,15 @@ function App() {
         </AnimatePresence>
       </main>
 
-      <footer className="relative z-10 py-12 text-center text-secondary/40 text-sm font-medium tracking-widest uppercase">
-        Project A.E.G.I.S — Secure Identity Visualizer
+      <footer className="relative z-10 py-12 text-center text-secondary/40 text-sm font-medium space-y-2">
+        <p className="tracking-wide normal-case text-secondary/50">
+          Project <span className="font-semibold text-secondary/70">A.E.G.I.S</span>
+          <span className="mx-2 text-secondary/30" aria-hidden>
+            ·
+          </span>
+          Advanced Encryption & Guarded Identity System
+        </p>
+        <p className="tracking-widest uppercase text-xs">Secure Identity Visualizer</p>
       </footer>
     </div>
   );
